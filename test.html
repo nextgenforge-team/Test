@@ -3,24 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Face Detector</title>
-    <!-- Load Google's High-Performance MediaPipe Face Detector -->
-    <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
-    <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
+    <title>Working Face Detector</title>
+    <!-- Lightweight tracking script -->
+    <script src="https://cloudflare.com"></script>
+    <script src="https://cloudflare.com"></script>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; background: #121212; color: white; padding-top: 50px; }
         video { border: 4px solid #00ffcc; border-radius: 10px; background: #222; transform: scaleX(-1); }
-        button { padding: 12px 24px; font-size: 16px; font-weight: bold; background: #00ffcc; color: black; border: none; border-radius: 5px; cursor: pointer; margin-bottom: 20px; }
-        #status { color: #888; margin-top: 10px; font-style: italic; font-size: 18px; }
+        button { padding: 15px 30px; font-size: 18px; font-weight: bold; background: #00ffcc; color: black; border: none; border-radius: 5px; cursor: pointer; margin-bottom: 20px; }
+        #status { color: #aaa; margin-top: 15px; font-size: 16px; font-style: italic; }
     </style>
 </head>
 <body>
 
-    <h1>AI Person Detector Greeting App</h1>
-    <button id="startBtn">Click to Start Camera & Audio</button>
+    <h1>AI Greeting Project</h1>
+    <button id="startBtn">Click to Turn On Camera</button>
     <br>
     <video id="video" width="320" height="240" autoplay playsinline muted></video>
-    <p id="status">Status: Click the button above to begin.</p>
+    <p id="status">Status: Waiting for click...</p>
 
     <script>
         const video = document.getElementById('video');
@@ -28,62 +28,61 @@
         const status = document.getElementById('status');
         let canSpeak = true;
 
-        startBtn.addEventListener('click', async () => {
-            status.innerText = "Status: Initializing AI Face Detection...";
+        startBtn.addEventListener('click', () => {
+            status.innerText = "Status: Prompting for camera permission...";
             startBtn.style.display = 'none';
-            initMediaPipe();
+            
+            // Step 1: Open the camera natively first
+            navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } })
+                .then(stream => {
+                    video.srcObject = stream;
+                    status.innerText = "Status: Camera connected! Starting tracker...";
+                    
+                    // Step 2: Only start face math once video is running
+                    video.onloadedmetadata = () => {
+                        video.play();
+                        startFaceTracking();
+                    };
+                })
+                .catch(err => {
+                    status.innerText = "Status: Error opening camera. Is it blocked?";
+                    console.error(err);
+                });
         });
 
-        function initMediaPipe() {
-            // Initialize Google's Face Detection Model
-            const faceDetection = new FaceDetection({
-                locateFile: (file) => `https://jsdelivr.net{file}`
-            });
+        function startFaceTracking() {
+            const tracker = new tracking.ObjectTracker('face');
+            tracker.setInitialScale(4);
+            tracker.setStepSize(2);
+            tracker.setEdgesDensity(0.1);
 
-            faceDetection.setOptions({
-                modelSelection: 0, // 0 for short-range (within 2 meters)
-                minDetectionConfidence: 0.6 // 60% confidence required
-            });
+            tracking.track('#video', tracker);
+            status.innerText = "Status: Scanning... Stand in front of the lens!";
 
-            // Triggered whenever the AI processes a video frame
-            faceDetection.onResults((results) => {
-                if (results.detections && results.detections.length > 0) {
-                    status.innerText = "Status: Face detected! 😊";
+            // Step 3: Listen for faces in the video box
+            tracker.on('track', function(event) {
+                if (event.data.length > 0) {
+                    status.innerText = "Status: Found you! Speaking greeting...";
                     if (canSpeak) {
-                        speakGreeting();
+                        speak();
                     }
                 } else {
-                    status.innerText = "Status: Scanning... (No face visible)";
+                    status.innerText = "Status: Scanning... (No faces seen)";
                 }
             });
-
-            // Link the web camera to the AI processing loop
-            const camera = new Camera(video, {
-                onFrame: async () => {
-                    await faceDetection.send({ image: video });
-                },
-                width: 320,
-                height: 240
-            });
-            
-            camera.start()
-                .then(() => { status.innerText = "Status: Active! Step in front of the camera."; })
-                .catch(err => { status.innerText = "Status: Camera Error - " + err; });
         }
 
-        function speakGreeting() {
+        function speak() {
             canSpeak = false;
-            status.innerText = "Status: Speaking greeting...";
             
             const msg = new SpeechSynthesisUtterance("Hello there! Welcome in front of my project.");
-            
-            window.speechSynthesis.cancel(); // Clear previous speech blocks
+            window.speechSynthesis.cancel(); // Clear any audio blocks
             window.speechSynthesis.speak(msg);
 
-            // Cooldown: wait 6 seconds before greeting again
+            // Cooldown for 7 seconds so it doesn't loop overlapping audio
             setTimeout(() => {
                 canSpeak = true;
-            }, 6000);
+            }, 7000);
         }
     </script>
 </body>
